@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useEvents, useStocks } from '../hooks/useApi';
+import { useEvents, useStocks, useSubtypes } from '../hooks/useApi';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -11,15 +11,27 @@ import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
 
 const EVENT_TYPES = [
-  'STAKE_TRANSACTION', 'CONTRACT', 'BUYBACK', 'ACQUISITION', 'PLEDGE', 
-  'INSIDER_TRADING', 'SEBI_ACTION', 'FII_DII', 'MUTUAL_FUND', 
-  'CREDIT_RATING', 'AUDITOR_RESIGNATION', 'BOARD_CHANGE'
+  'corporate_action', 'disclosure', 'insider', 'business', 
+  'governance', 'credit_rating', 'financials', 'fundraising', 'legal'
 ];
+
+function SubtypeFilter({ eventType, value, onChange }) {
+  const { data: subtypes, isLoading, isError } = useSubtypes(eventType);
+  return (
+    <Select value={value} onChange={e => onChange(e.target.value)} disabled={isLoading || isError || !eventType}>
+      <option value="">{isLoading ? 'Loading...' : isError ? 'API Error' : !eventType ? 'Select Type First' : 'All Subtypes'}</option>
+      {subtypes?.map(s => (
+        <option key={s.subtype_code} value={s.subtype_code}>{s.label}</option>
+      ))}
+    </Select>
+  );
+}
 
 export default function Dashboard() {
   const [filters, setFilters] = useState({
-    symbol: '',
+    stock_id: '',
     event_type: '',
+    event_subtype: '',
     priority: '',
     date_from: '',
     date_to: '',
@@ -45,13 +57,20 @@ export default function Dashboard() {
     setPagination(p => ({ ...p, skip: 0 }));
   };
 
-  const activeFilters = {
-    ...Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== '')),
-    skip: pagination.skip,
+  const apiFilters = {
+    stock_id: filters.stock_id,
+    event_type: filters.event_type,
+    event_subtype: filters.event_subtype,
+    priority: filters.priority,
+    date_from: filters.date_from,
+    date_to: filters.date_to,
+    active_only: true,
+    offset: pagination.skip,
     limit: pagination.limit
   };
+  const activeApiFilters = Object.fromEntries(Object.entries(apiFilters).filter(([_, v]) => v !== ''));
 
-  const { data: events, isLoading, error } = useEvents(activeFilters);
+  const { data: events, isLoading, error } = useEvents(activeApiFilters);
   const { data: stocks } = useStocks();
 
   const handleFilterChange = (e) => {
@@ -60,20 +79,21 @@ export default function Dashboard() {
   };
 
   const getPriorityBadge = (priority) => {
-    if (priority === 'HIGH') return <Badge variant="destructive" className="animate-pulse shadow-sm shadow-red-200"><AlertCircle className="w-3 h-3 mr-1" /> HIGH</Badge>;
-    if (priority === 'MEDIUM') return <Badge variant="warning">MEDIUM</Badge>;
+    if (priority === 'high') return <Badge variant="destructive" className="animate-pulse shadow-sm shadow-red-200"><AlertCircle className="w-3 h-3 mr-1" /> HIGH</Badge>;
+    if (priority === 'medium') return <Badge variant="warning">MEDIUM</Badge>;
     return <Badge variant="secondary">LOW</Badge>;
   };
 
   const EVENT_COLORS = {
-    STAKE_TRANSACTION: "bg-blue-100 text-blue-700 border-blue-200",
-    CONTRACT: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    BUYBACK: "bg-purple-100 text-purple-700 border-purple-200",
-    ACQUISITION: "bg-amber-100 text-amber-700 border-amber-200",
-    PLEDGE: "bg-rose-100 text-rose-700 border-rose-200",
-    INSIDER_TRADING: "bg-red-100 text-red-700 border-red-200",
-    SEBI_ACTION: "bg-red-100 text-red-700 border-red-200",
-    BOARD_CHANGE: "bg-slate-100 text-slate-700 border-slate-200",
+    corporate_action: "bg-blue-100 text-blue-700 border-blue-200",
+    disclosure: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    insider: "bg-rose-100 text-rose-700 border-rose-200",
+    business: "bg-amber-100 text-amber-700 border-amber-200",
+    governance: "bg-slate-100 text-slate-700 border-slate-200",
+    credit_rating: "bg-purple-100 text-purple-700 border-purple-200",
+    financials: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    fundraising: "bg-cyan-100 text-cyan-700 border-cyan-200",
+    legal: "bg-red-100 text-red-700 border-red-200",
   };
 
   const getEventBadgeColor = (type) => {
@@ -100,22 +120,22 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Card className="border-slate-200/60 shadow-sm bg-white/50 backdrop-blur-xl">
-        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+      <Card className="border-slate-200/60 shadow-sm bg-white/50 backdrop-blur-xl relative z-20">
+        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
           <div className="space-y-1.5 md:col-span-1">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Symbol Search</label>
             <StockAutocomplete
-              value={filters.symbol}
-              onChange={(val) => setFilters(prev => ({ ...prev, symbol: val }))}
-              returnType="symbol"
-              placeholder="e.g. RELIANCE"
+              value={filters.stock_id}
+              onChange={(val) => setFilters(prev => ({ ...prev, stock_id: val }))}
+              returnType="id"
+              placeholder="Search..."
               showIcon={true}
             />
           </div>
           
           <div className="space-y-1.5 md:col-span-1">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Event Type</label>
-            <Select name="event_type" value={filters.event_type} onChange={handleFilterChange}>
+            <Select name="event_type" value={filters.event_type} onChange={e => { handleFilterChange(e); setFilters(prev => ({...prev, event_subtype: ''})); }}>
               <option value="">All Types</option>
               {EVENT_TYPES.map(type => (
                 <option key={type} value={type}>{type.replace('_', ' ')}</option>
@@ -124,12 +144,17 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-1.5 md:col-span-1">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Event Subtype</label>
+            <SubtypeFilter eventType={filters.event_type} value={filters.event_subtype} onChange={val => setFilters(prev => ({...prev, event_subtype: val}))} />
+          </div>
+
+          <div className="space-y-1.5 md:col-span-1">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Priority</label>
             <Select name="priority" value={filters.priority} onChange={handleFilterChange}>
               <option value="">All Priorities</option>
-              <option value="HIGH">High</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="LOW">Low</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
             </Select>
           </div>
 
@@ -139,6 +164,7 @@ export default function Dashboard() {
               type="date"
               name="date_from"
               value={filters.date_from}
+              max={new Date().toISOString().split('T')[0]}
               onChange={handleFilterChange}
               className="h-10 text-slate-700 uppercase"
             />
@@ -150,6 +176,8 @@ export default function Dashboard() {
               type="date"
               name="date_to"
               value={filters.date_to}
+              min={filters.date_from}
+              max={new Date().toISOString().split('T')[0]}
               onChange={handleFilterChange}
               className="h-10 text-slate-700 uppercase"
             />
@@ -192,7 +220,7 @@ export default function Dashboard() {
               ) : (
                 events?.map((event) => {
                   const stock = stocks?.find(s => s.id === event.stock_id);
-                  const isHighPriority = event.priority === 'HIGH';
+                  const isHighPriority = event.priority === 'high';
                   
                   return (
                     <tr 
@@ -211,9 +239,16 @@ export default function Dashboard() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant="outline" className={`shadow-sm ${getEventBadgeColor(event.event_type)}`}>
-                          {event.event_type.replace('_', ' ')}
-                        </Badge>
+                        <div className="flex flex-col space-y-1 items-start">
+                          <Badge variant="outline" className={`shadow-sm uppercase ${getEventBadgeColor(event.event_type)}`}>
+                            {event.event_type.replace(/_/g, ' ')}
+                          </Badge>
+                          {event.event_subtype && (
+                             <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
+                                {event.subtype_label || event.event_subtype.replace(/_/g, ' ')}
+                             </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-900 min-w-[300px] border-transparent">
                         <p className="line-clamp-2" title={event.title}>{event.title}</p>

@@ -17,8 +17,7 @@ export default function EventDetail() {
   if (error || !event) return <div className="p-8 text-center text-red-500 text-xl font-bold">Event not found.</div>;
 
   const stock = stocks?.find(s => s.id === event.stock_id);
-  const detailKey = `${event.event_type.toLowerCase()}_details`;
-  const dynamicDetails = event[detailKey];
+  const dynamicDetails = event.detail;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -33,10 +32,15 @@ export default function EventDetail() {
                 <div>
                    <div className="flex items-center space-x-3 mb-3">
                        <span className="text-2xl font-black text-slate-900 tracking-tight">{stock?.symbol}</span>
-                       <Badge variant="outline" className="text-sm bg-slate-50 font-medium">
-                           {event.event_type.replace('_', ' ')}
+                       <Badge variant="outline" className="text-sm bg-slate-50 font-medium uppercase">
+                           {event.event_type.replace(/_/g, ' ')}
                        </Badge>
-                       {event.priority === 'HIGH' && <Badge variant="destructive" className="animate-pulse">HIGH PRIORITY</Badge>}
+                       {event.event_subtype && (
+                          <Badge variant="secondary" className="text-sm bg-emerald-50 text-emerald-700 uppercase">
+                              {event.subtype_label || event.event_subtype.replace(/_/g, ' ')}
+                          </Badge>
+                       )}
+                       {event.priority === 'high' && <Badge variant="destructive" className="animate-pulse shadow-sm shadow-red-200">HIGH PRIORITY</Badge>}
                    </div>
                    <h1 className="text-3xl font-bold text-slate-800 leading-tight">{event.title}</h1>
                 </div>
@@ -69,15 +73,27 @@ export default function EventDetail() {
                 <div className="bg-slate-50/80 rounded-xl p-6 border border-slate-100">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Event Specific Details</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
-                        {Object.entries(dynamicDetails).map(([key, value]) => {
+                        {Object.entries(dynamicDetails).filter(([key]) => key !== 'currency').map(([key, value]) => {
                             if (value === null || value === undefined) return null;
+                            
+                            const isCr = (key.includes('amount') && key !== 'amount_per_share') || key.includes('value') || key.includes('size') || ['revenue', 'ebitda', 'pat'].includes(key);
+                            const isPerShare = key.includes('price') || key.includes('per_share') || key === 'upside';
+                            
+                            let displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value;
+                            if ((isCr || isPerShare) && value !== '') {
+                               const curr = dynamicDetails.currency || 'INR';
+                               const numValue = parseFloat(value);
+                               const formattedValue = isNaN(numValue) ? value : numValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                               displayValue = `${curr} ${formattedValue}${isCr ? ' Cr' : ''}`;
+                            }
+
                             return (
                                 <div key={key}>
                                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                                         {key.replace(/_/g, ' ')}
                                     </div>
                                     <div className="text-slate-900 font-medium text-lg">
-                                        {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}
+                                        {displayValue}
                                     </div>
                                 </div>
                             )
