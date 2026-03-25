@@ -7,24 +7,37 @@ import { Label } from '../components/ui/Label';
 import { Select } from '../components/ui/Select';
 import { StockAutocomplete } from '../components/ui/StockAutocomplete';
 import { DynamicEventFields } from '../components/DynamicEventFields';
-import { useStocks, useCreateBatchWithEvents } from '../hooks/useApi';
-import { Plus, Trash2, Copy, Save, Send, AlertCircle } from 'lucide-react';
+import { useStocks, useCreateBatchWithEvents, useSubtypes } from '../hooks/useApi';
+import { Plus, Trash2, Copy, Save, Send, AlertCircle, Loader2 } from 'lucide-react';
 
 const EVENT_TYPES = [
-  'STAKE_TRANSACTION', 'CONTRACT', 'BUYBACK', 'ACQUISITION', 'PLEDGE', 
-  'INSIDER_TRADING', 'SEBI_ACTION', 'FII_DII', 'MUTUAL_FUND', 
-  'CREDIT_RATING', 'AUDITOR_RESIGNATION', 'BOARD_CHANGE'
+  'corporate_action', 'disclosure', 'insider', 'business', 
+  'governance', 'credit_rating', 'financials', 'fundraising', 'legal'
 ];
 
 const emptyEvent = {
   stock_id: '',
-  event_type: 'STAKE_TRANSACTION',
+  event_type: '',
+  event_subtype: '',
   title: '',
   event_date: new Date().toISOString().split('T')[0],
-  priority: 'LOW',
+  priority: 'low',
   impact_score: 1,
   source_url: '',
+  detail: { currency: 'INR' }
 };
+
+function SubtypeSelector({ eventType, value, onChange }) {
+  const { data: subtypes, isLoading, isError } = useSubtypes(eventType);
+  return (
+    <Select value={value} onChange={e => onChange(e.target.value)} disabled={isLoading || isError || !eventType}>
+      <option value="">{isLoading ? 'Loading...' : isError ? 'Error (API unreachable)' : 'Select...'}</option>
+      {subtypes?.map(s => (
+        <option key={s.subtype_code} value={s.subtype_code}>{s.label}</option>
+      ))}
+    </Select>
+  );
+}
 
 export default function CreateBatch() {
   const navigate = useNavigate();
@@ -60,16 +73,10 @@ export default function CreateBatch() {
 
   const handleEventChange = (id, updatedFields) => {
     setEvents(events.map(ev => ev.id === id ? { ...ev, ...updatedFields } : ev));
-    
-    // Autofill last used stock for future events if stock changed
-    if (updatedFields.stock_id) {
-       localStorage.setItem('stoxscoop_last_stock_id', updatedFields.stock_id);
-    }
   };
 
   const addEvent = () => {
-    const lastStockId = localStorage.getItem('stoxscoop_last_stock_id') || '';
-    setEvents([...events, { ...emptyEvent, id: Date.now(), stock_id: lastStockId }]);
+    setEvents([...events, { ...emptyEvent, id: Date.now() }]);
   };
 
   const duplicateEvent = (event) => {
@@ -89,8 +96,7 @@ export default function CreateBatch() {
     }
     
     const hasInvalidEvents = events.some(ev => {
-        if (!ev.stock_id || !ev.title || !ev.event_type) return true;
-        if (ev.event_type === 'CONTRACT' && !ev.contract_details?.contract_type) return true;
+        if (!ev.stock_id || !ev.title || !ev.event_type || !ev.event_subtype) return true;
         return false;
     });
     
@@ -191,11 +197,19 @@ export default function CreateBatch() {
                   </div>
                   <div>
                     <Label>Event Type <span className="text-red-500">*</span></Label>
-                    <Select value={event.event_type} onChange={e => handleEventChange(event.id, { event_type: e.target.value })}>
+                    <Select value={event.event_type} onChange={e => handleEventChange(event.id, { event_type: e.target.value, event_subtype: '', detail: {} })}>
                       {EVENT_TYPES.map((type) => (
-                        <option key={type} value={type}>{type.replace('_', ' ')}</option>
+                        <option key={type} value={type}>{type.replace('_', ' ').toUpperCase()}</option>
                       ))}
                     </Select>
+                  </div>
+                  <div>
+                    <Label>Event Subtype <span className="text-red-500">*</span></Label>
+                    <SubtypeSelector 
+                      eventType={event.event_type} 
+                      value={event.event_subtype} 
+                      onChange={val => handleEventChange(event.id, { event_subtype: val, detail: {} })} 
+                    />
                   </div>
                   <div>
                     <Label>Date <span className="text-red-500">*</span></Label>
@@ -213,9 +227,9 @@ export default function CreateBatch() {
                     <div>
                         <Label>Priority</Label>
                         <Select value={event.priority} onChange={e => handleEventChange(event.id, { priority: e.target.value })}>
-                          <option value="HIGH">High</option>
-                          <option value="MEDIUM">Medium</option>
-                          <option value="LOW">Low</option>
+                          <option value="high">High</option>
+                          <option value="medium">Medium</option>
+                          <option value="low">Low</option>
                         </Select>
                     </div>
                     <div>
