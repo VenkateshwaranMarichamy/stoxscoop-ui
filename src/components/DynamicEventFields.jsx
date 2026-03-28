@@ -103,6 +103,15 @@ export function DynamicEventFields({ eventType, event, onChange }) {
       else if (subtype === 'merger') fields = [F_TARGET_CO, {name: 'swap_ratio', label: 'Swap Ratio'}, {...F_TOTAL_SIZE, req: false}, F_DESC];
       else if (subtype === 'demerger') fields = [F_TARGET_CO, F_EFF_DATE, F_DESC];
       else if (subtype === 'open_offer') fields = [F_OFFER_PRICE, {...F_TOTAL_SIZE, req: false}, F_EFF_DATE];
+      else if (subtype === 'acquisition') fields = [
+        { name: 'target_company', label: 'Target Company', req: true },
+        { name: 'stake_acquired_pct', label: 'Stake Acquired %', type: 'number', step: '0.01' },
+        { name: 'resulting_stake_pct', label: 'Resulting Stake %', type: 'number', step: '0.01' },
+        { name: 'total_size', label: 'Total Size (Cr)', type: 'number' },
+        { name: 'amount_per_share', label: 'Amount Per Share', type: 'number', step: '0.01' },
+        { name: 'shares_transacted', label: 'Shares Transacted (Cr)', type: 'number' },
+        F_CURRENCY,
+      ];
       break;
 
     case 'disclosure':

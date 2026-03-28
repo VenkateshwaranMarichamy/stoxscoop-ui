@@ -42,7 +42,12 @@ export default function EventDetail() {
                        )}
                        {event.priority === 'high' && <Badge variant="destructive" className="animate-pulse shadow-sm shadow-red-200">HIGH PRIORITY</Badge>}
                    </div>
-                   <h1 className="text-3xl font-bold text-slate-800 leading-tight">{event.title}</h1>
+                   <h1 className="text-3xl font-bold text-slate-800 leading-tight mb-2">{event.title}</h1>
+                   {event.summary && (
+                       <p className="text-slate-600 leading-relaxed text-sm max-w-2xl">
+                           {event.summary}
+                       </p>
+                   )}
                 </div>
                 <div className="text-right">
                     <div className="text-5xl font-black text-slate-200 tracking-tighter mb-1">

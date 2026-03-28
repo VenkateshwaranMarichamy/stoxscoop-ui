@@ -8,7 +8,8 @@ import { Select } from '../components/ui/Select';
 import { StockAutocomplete } from '../components/ui/StockAutocomplete';
 import { DynamicEventFields } from '../components/DynamicEventFields';
 import { useStocks, useCreateBatchWithEvents, useSubtypes } from '../hooks/useApi';
-import { Plus, Trash2, Copy, Save, Send, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Copy, Save, Send, AlertCircle, Info } from 'lucide-react';
+import { EVENT_TYPE_SUMMARIES, SUBTYPE_SUMMARIES } from '../utils/eventSummaries';
 
 const EVENT_TYPES = [
   'corporate_action', 'disclosure', 'insider', 'business', 
@@ -20,12 +21,24 @@ const emptyEvent = {
   event_type: '',
   event_subtype: '',
   title: '',
+  summary: '',
   event_date: new Date().toISOString().split('T')[0],
   priority: 'low',
   impact_score: 1,
   source_url: '',
   detail: { currency: 'INR' }
 };
+
+// Inline summary banner shown below a dropdown
+function SummaryBanner({ text }) {
+  if (!text) return null;
+  return (
+    <div className="flex items-start gap-2 mt-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700 leading-relaxed">
+      <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-400" />
+      <span>{text}</span>
+    </div>
+  );
+}
 
 function SubtypeSelector({ eventType, value, onChange }) {
   const { data: subtypes, isLoading, isError } = useSubtypes(eventType);
@@ -109,7 +122,8 @@ export default function CreateBatch() {
     const payloadEvents = events.map(({ id, ...rest }) => ({
         ...rest,
         stock_id: parseInt(rest.stock_id, 10),
-        impact_score: parseInt(rest.impact_score, 10)
+        impact_score: parseInt(rest.impact_score, 10),
+        summary: rest.summary || null,
     }));
 
     createBatch({
@@ -198,10 +212,12 @@ export default function CreateBatch() {
                   <div>
                     <Label>Event Type <span className="text-red-500">*</span></Label>
                     <Select value={event.event_type} onChange={e => handleEventChange(event.id, { event_type: e.target.value, event_subtype: '', detail: {} })}>
+                      <option value="">Select type...</option>
                       {EVENT_TYPES.map((type) => (
-                        <option key={type} value={type}>{type.replace('_', ' ').toUpperCase()}</option>
+                        <option key={type} value={type}>{type.replace(/_/g, ' ').toUpperCase()}</option>
                       ))}
                     </Select>
+                    <SummaryBanner text={EVENT_TYPE_SUMMARIES[event.event_type]} />
                   </div>
                   <div>
                     <Label>Event Subtype <span className="text-red-500">*</span></Label>
@@ -210,6 +226,7 @@ export default function CreateBatch() {
                       value={event.event_subtype} 
                       onChange={val => handleEventChange(event.id, { event_subtype: val, detail: {} })} 
                     />
+                    <SummaryBanner text={SUBTYPE_SUMMARIES[`${event.event_type}_${event.event_subtype}`] ?? SUBTYPE_SUMMARIES[event.event_subtype]} />
                   </div>
                   <div>
                     <Label>Date <span className="text-red-500">*</span></Label>
@@ -252,6 +269,16 @@ export default function CreateBatch() {
                     onChange={(updated) => handleEventChange(event.id, updated)} 
                 />
 
+                <div>
+                   <Label>Description <span className="text-slate-400 font-normal text-xs">(sent as summary)</span></Label>
+                   <textarea
+                     value={event.summary}
+                     onChange={e => handleEventChange(event.id, { summary: e.target.value })}
+                     placeholder="Brief description of this event and its significance..."
+                     rows={3}
+                     className="w-full mt-1 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent resize-none leading-relaxed"
+                   />
+                </div>
                 <div>
                    <Label>Source URL (Optional)</Label>
                    <Input value={event.source_url} onChange={e => handleEventChange(event.id, { source_url: e.target.value })} placeholder="https://..." className="text-emerald-600" />
