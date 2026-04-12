@@ -4,7 +4,7 @@ import { Input } from './Input';
 import { cn } from '../../utils/cn';
 import { Search } from 'lucide-react';
 
-export function StockAutocomplete({ value, onChange, placeholder = "Search stock...", returnType = 'id', className, showIcon = false }) {
+export function StockAutocomplete({ value, onChange, placeholder = "Search stock...", returnType = 'id', className, showIcon = false, error }) {
   const { data: stocks, isLoading } = useStocks();
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -78,6 +78,7 @@ export function StockAutocomplete({ value, onChange, placeholder = "Search stock
         onChange={handleInputChange}
         onFocus={() => { if (searchTerm.length >= 2 && !selectedStock) setIsOpen(true) }}
         className={cn("w-full bg-white", showIcon && "pl-9")}
+        error={error}
       />
       {isOpen && searchTerm.length >= 2 && !selectedStock && (
         <ul className="absolute z-[100] w-full mt-1 max-h-60 overflow-auto rounded-md bg-white border border-slate-200 shadow-lg text-sm">

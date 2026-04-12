@@ -57,6 +57,76 @@ export default function Dashboard() {
     setPagination(p => ({ ...p, skip: 0 }));
   };
 
+  const getPaginationInfo = () => {
+    const limit = pagination.limit;
+    const skip = pagination.skip;
+    const currentPage = Math.floor(skip / limit) + 1;
+    const itemsCount = (Array.isArray(events) ? events : events?.items)?.length || 0;
+    
+    let totalPagesKnown = events?.total_pages || (events?.total_records ? Math.ceil(events.total_records / limit) : null);
+    
+    let hasNext = totalPagesKnown 
+       ? currentPage < totalPagesKnown 
+       : itemsCount === limit;
+
+    return { currentPage, totalPagesKnown, hasNext, limit };
+  };
+
+  const renderPaginationButtons = () => {
+    if (isLoading || !events) return null;
+    const { currentPage, totalPagesKnown, hasNext, limit } = getPaginationInfo();
+    
+    let pages = [];
+    let showEndDots = false;
+    
+    if (totalPagesKnown) {
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPagesKnown, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+        showEndDots = totalPagesKnown > pages[pages.length - 1];
+    } else {
+        let startPage = Math.max(1, currentPage - 1);
+        let endPage = currentPage;
+        
+        if (hasNext) {
+            endPage = Math.max(3, currentPage + 1); 
+            showEndDots = true;
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+    }
+    
+    return (
+        <div className="flex space-x-1 items-center">
+            {pages[0] > 1 && <span className="px-1 text-slate-400">...</span>}
+            {pages.map(p => (
+                <Button
+                    key={p}
+                    variant={p === currentPage ? "default" : "outline"}
+                    size="sm"
+                    className={`min-w-8 h-8 px-2 ${p === currentPage ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+                    onClick={() => {
+                        setPagination(prev => ({...prev, skip: (p - 1) * limit}));
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                >
+                    {p}
+                </Button>
+            ))}
+            {showEndDots && (
+                <span className="px-1 text-slate-400">...</span>
+            )}
+        </div>
+    );
+  };
+
   const apiFilters = {
     stock_id: filters.stock_id,
     event_type: filters.event_type,
@@ -202,23 +272,23 @@ export default function Dashboard() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan="7" className="px-6 py-8 text-center text-slate-500">
                     <div className="flex justify-center items-center space-x-2">
                        <div className="w-4 h-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
                        <span className="animate-pulse">Loading events...</span>
                     </div>
                   </td>
                 </tr>
-              ) : events?.length === 0 ? (
+              ) : (Array.isArray(events) ? events : events?.items)?.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-slate-500 bg-slate-50/50">
-                    <Filter className="w-8 h-8 mx-auto mb-3 text-slate-300" />
+                  <td colSpan="7" className="px-6 py-12 text-center text-slate-500 bg-slate-50/50">
+                  <Filter className="w-8 h-8 mx-auto mb-3 text-slate-300" />
                     <p className="font-medium text-slate-600">No events found matching your filters</p>
                     <p className="text-xs mt-1">Try adjusting your search criteria or date range.</p>
                   </td>
                 </tr>
               ) : (
-                events?.map((event) => {
+                (Array.isArray(events) ? events : events?.items)?.map((event) => {
                   const stock = stocks?.find(s => s.id === event.stock_id);
                   const isHighPriority = event.priority === 'high';
                   
@@ -282,25 +352,49 @@ export default function Dashboard() {
         
         {/* Pagination Footer */}
         <div className="flex justify-between items-center p-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
-           <Button 
-             variant="outline" 
-             size="sm" 
-             disabled={pagination.skip === 0} 
-             onClick={() => setPagination(p => ({...p, skip: Math.max(0, p.skip - p.limit)}))}
-           >
-             Previous
-           </Button>
-           <span className="text-sm font-medium text-slate-500">
-             Page {Math.floor(pagination.skip / pagination.limit) + 1}
-           </span>
-           <Button 
-             variant="outline" 
-             size="sm"
-             disabled={!events || events.length < pagination.limit} 
-             onClick={() => setPagination(p => ({...p, skip: p.skip + p.limit}))}
-           >
-             Next
-           </Button>
+           <div className="flex items-center space-x-2">
+             <Button 
+               variant="outline" 
+               size="sm" 
+               disabled={pagination.skip === 0} 
+               onClick={() => {
+                 setPagination(p => ({...p, skip: Math.max(0, p.skip - p.limit)}));
+                 window.scrollTo({ top: 0, behavior: 'smooth' });
+               }}
+               className="bg-white"
+             >
+               Previous
+             </Button>
+           </div>
+           
+           <div className="flex flex-col items-center">
+             {renderPaginationButtons()}
+             {events?.total_records !== undefined && (
+               <span className="text-[10px] text-slate-500 uppercase tracking-tighter font-bold mt-1">
+                 Total: {events.total_records} records
+               </span>
+             )}
+             {!events?.total_records && !isLoading && (
+                <span className="text-[10px] text-slate-500 uppercase tracking-tighter font-bold mt-1">
+                  Showing {(Array.isArray(events) ? events : events?.items)?.length} results
+                </span>
+             )}
+           </div>
+
+           <div className="flex items-center space-x-2">
+             <Button 
+               variant="outline" 
+               size="sm"
+               disabled={!getPaginationInfo().hasNext} 
+               onClick={() => {
+                 setPagination(p => ({...p, skip: p.skip + p.limit}));
+                 window.scrollTo({ top: 0, behavior: 'smooth' });
+               }}
+               className="bg-white"
+             >
+               Next
+             </Button>
+           </div>
         </div>
       </Card>
     </div>
