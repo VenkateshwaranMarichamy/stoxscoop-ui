@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
+      '/api/classification': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
+      },
       '/api': {
         target: 'http://127.0.0.1:8001',
         changeOrigin: true

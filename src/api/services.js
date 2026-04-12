@@ -41,3 +41,36 @@ export const getSubtypes = async (eventType) => {
   const { data } = await apiClient.get(`/v1/subtypes`, { params: { event_type: eventType } });
   return data;
 };
+
+export const getMarketUpdates = async (params) => {
+  const { data } = await apiClient.get('/v1/market-updates', { params });
+  return data;
+};
+
+export const createMarketUpdate = async (payload) => {
+  const { data } = await apiClient.post('/v1/market-updates', payload);
+  return data;
+};
+
+export const getMacroSectors = async () => {
+  const { data } = await apiClient.get('/classification/macro-economic-sectors');
+  return data;
+};
+
+export const getSectors = async (mes_code = null) => {
+  const params = mes_code ? { mes_code } : {};
+  const { data } = await apiClient.get('/classification/sectors', { params });
+  return data;
+};
+
+export const getIndustries = async (sector_code = null) => {
+  const params = sector_code ? { sect_code: sector_code } : {};
+  const { data } = await apiClient.get('/classification/industries', { params });
+  return data;
+};
+
+export const getBasicIndustries = async (ind_code = null) => {
+  const params = { skip: 0, limit: 200, ...(ind_code ? { ind_code } : {}) };
+  const { data } = await apiClient.get('/classification/basic-industries', { params });
+  return data;
+};

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, Plus } from 'lucide-react';
+import { TrendingUp, Plus, Newspaper } from 'lucide-react';
 import { cn } from '../utils/cn';
 
 export default function Layout({ children }) {
@@ -29,6 +29,15 @@ export default function Layout({ children }) {
               Dashboard
             </Link>
           )}
+          <Link
+            to="/market-updates"
+            className={cn(
+              "text-sm font-semibold transition-colors hover:text-white flex items-center",
+              location.pathname.startsWith('/market-updates') ? "text-white" : "text-slate-300"
+            )}
+          >
+            <Newspaper className="h-4 w-4 mr-1.5" /> Market Updates
+          </Link>
           {location.pathname !== '/batch/create' && (
             <Link 
               to="/batch/create" 

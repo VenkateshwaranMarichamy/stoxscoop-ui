@@ -74,3 +74,46 @@ export const useCreateEvent = () => {
     },
   });
 };
+
+export const useMarketUpdates = (params) => {
+  return useQuery({
+    queryKey: ['market-updates', params],
+    queryFn: () => api.getMarketUpdates(params),
+  });
+};
+
+export const useCreateMarketUpdate = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.createMarketUpdate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['market-updates'] });
+    },
+  });
+};
+
+export const useClassification = () => {
+  const macroSectors = useQuery({ queryKey: ['macro-sectors'],    queryFn: () => api.getMacroSectors(),    staleTime: Infinity });
+  const sectors      = useQuery({ queryKey: ['sectors-all'],      queryFn: () => api.getSectors(),         staleTime: Infinity });
+  const industries   = useQuery({ queryKey: ['industries-all'],   queryFn: () => api.getIndustries(),      staleTime: Infinity });
+  const basicInds    = useQuery({ queryKey: ['basic-industries'],  queryFn: () => api.getBasicIndustries(), staleTime: Infinity });
+  return { macroSectors, sectors, industries, basicInds };
+};
+
+export const useSectors = (mes_code) => {
+  return useQuery({
+    queryKey: ['sectors', mes_code],
+    queryFn: () => api.getSectors(mes_code),
+    enabled: !!mes_code,
+    staleTime: Infinity,
+  });
+};
+
+export const useIndustries = (sector_code) => {
+  return useQuery({
+    queryKey: ['industries', sector_code],
+    queryFn: () => api.getIndustries(sector_code),
+    enabled: !!sector_code,
+    staleTime: Infinity,
+  });
+};
