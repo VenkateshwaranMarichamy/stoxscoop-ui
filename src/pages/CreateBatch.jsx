@@ -6,7 +6,7 @@ import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Select } from '../components/ui/Select';
 import { StockAutocomplete } from '../components/ui/StockAutocomplete';
-import { DynamicEventFields } from '../components/DynamicEventFields';
+import { DynamicEventFields, getDynamicFields } from '../components/DynamicEventFields';
 import { useStocks, useCreateBatchWithEvents, useSubtypes } from '../hooks/useApi';
 import { Plus, Trash2, Copy, Save, Send, AlertCircle, Info } from 'lucide-react';
 import { EVENT_TYPE_SUMMARIES, SUBTYPE_SUMMARIES } from '../utils/eventSummaries';
@@ -40,10 +40,10 @@ function SummaryBanner({ text }) {
   );
 }
 
-function SubtypeSelector({ eventType, value, onChange }) {
+function SubtypeSelector({ eventType, value, onChange, error }) {
   const { data: subtypes, isLoading, isError } = useSubtypes(eventType);
   return (
-    <Select value={value} onChange={e => onChange(e.target.value)} disabled={isLoading || isError || !eventType}>
+    <Select value={value} onChange={e => onChange(e.target.value)} disabled={isLoading || isError || !eventType} error={error}>
       <option value="">{isLoading ? 'Loading...' : isError ? 'Error (API unreachable)' : 'Select...'}</option>
       {subtypes?.map(s => (
         <option key={s.subtype_code} value={s.subtype_code}>{s.label}</option>
@@ -60,6 +60,7 @@ export default function CreateBatch() {
   const [batch, setBatch] = useState({ batch_name: '', notes: '' });
   const [events, setEvents] = useState([{ ...emptyEvent, id: Date.now() }]);
   const [error, setError] = useState(null);
+  const [validationErrors, setValidationErrors] = useState({ batch: {}, events: {} });
 
   // Load from Draft
   useEffect(() => {
@@ -82,10 +83,44 @@ export default function CreateBatch() {
     localStorage.removeItem('stoxscoop_draft');
   }
 
-  const handleBatchChange = (e) => setBatch({ ...batch, [e.target.name]: e.target.value });
+  const handleBatchChange = (e) => {
+    const { name, value } = e.target;
+    setBatch({ ...batch, [name]: value });
+    if (validationErrors.batch[name]) {
+        setValidationErrors(prev => ({
+            ...prev,
+            batch: { ...prev.batch, [name]: false }
+        }));
+    }
+  };
 
   const handleEventChange = (id, updatedFields) => {
     setEvents(events.map(ev => ev.id === id ? { ...ev, ...updatedFields } : ev));
+    
+    // Clear validation errors for changed fields
+    if (validationErrors.events[id]) {
+        const newEventErrors = { ...validationErrors.events[id] };
+        let changed = false;
+        Object.keys(updatedFields).forEach(key => {
+            if (key === 'detail' && updatedFields.detail) {
+                Object.keys(updatedFields.detail).forEach(detailKey => {
+                    if (newEventErrors[detailKey]) {
+                        newEventErrors[detailKey] = false;
+                        changed = true;
+                    }
+                });
+            } else if (newEventErrors[key]) {
+                newEventErrors[key] = false;
+                changed = true;
+            }
+        });
+        if (changed) {
+            setValidationErrors(prev => ({
+                ...prev,
+                events: { ...prev.events, [id]: newEventErrors }
+            }));
+        }
+    }
   };
 
   const addEvent = () => {
@@ -102,21 +137,46 @@ export default function CreateBatch() {
   };
 
   const handleSubmit = () => {
+    const newValidationErrors = { batch: {}, events: {} };
+    let hasErrors = false;
+
     if (!batch.batch_name) {
-        setError('Batch name is required.');
-        window.scrollTo(0, 0);
-        return;
+        newValidationErrors.batch.batch_name = true;
+        hasErrors = true;
     }
     
-    const hasInvalidEvents = events.some(ev => {
-        if (!ev.stock_id || !ev.title || !ev.event_type || !ev.event_subtype) return true;
-        return false;
+    events.forEach(ev => {
+        const eventErrors = {};
+        if (!ev.stock_id) eventErrors.stock_id = true;
+        if (!ev.title) eventErrors.title = true;
+        if (!ev.event_type) eventErrors.event_type = true;
+        if (!ev.event_subtype) eventErrors.event_subtype = true;
+        
+        if (ev.event_type && ev.event_subtype) {
+            const dynamicFieldsConfig = getDynamicFields(ev.event_type, ev.event_subtype);
+            dynamicFieldsConfig.forEach(field => {
+                const val = ev.detail?.[field.name];
+                if (field.req && (val === undefined || val === null || val === '')) {
+                    eventErrors[field.name] = true;
+                }
+            });
+        }
+        
+        if (Object.keys(eventErrors).length > 0) {
+            newValidationErrors.events[ev.id] = eventErrors;
+            hasErrors = true;
+        }
     });
     
-    if (hasInvalidEvents) {
+    if (hasErrors) {
+        setValidationErrors(newValidationErrors);
         setError('Please check events. Ensure all mandatory fields (marked with *) are correctly filled out.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
     }
+
+    setError(null);
+    setValidationErrors({ batch: {}, events: {} });
 
     // Clean up internal `id` before submitting
     const payloadEvents = events.map(({ id, ...rest }) => ({
@@ -167,7 +227,14 @@ export default function CreateBatch() {
         <CardContent className="space-y-4 pt-6">
           <div>
             <Label>Batch Name <span className="text-red-500">*</span></Label>
-            <Input name="batch_name" value={batch.batch_name} onChange={handleBatchChange} placeholder="e.g. Morning Tech Updates 24th Oct" className="text-lg py-5" />
+            <Input 
+              name="batch_name" 
+              value={batch.batch_name} 
+              onChange={handleBatchChange} 
+              placeholder="e.g. Morning Tech Updates 24th Oct" 
+              className="text-lg py-5"
+              error={validationErrors.batch.batch_name}
+            />
           </div>
           <div>
             <Label>Notes (Optional)</Label>
@@ -207,11 +274,16 @@ export default function CreateBatch() {
                       value={event.stock_id}
                       onChange={(val) => handleEventChange(event.id, { stock_id: val })}
                       returnType="id"
+                      error={validationErrors.events[event.id]?.stock_id}
                     />
                   </div>
                   <div>
                     <Label>Event Type <span className="text-red-500">*</span></Label>
-                    <Select value={event.event_type} onChange={e => handleEventChange(event.id, { event_type: e.target.value, event_subtype: '', detail: {} })}>
+                    <Select 
+                      value={event.event_type} 
+                      onChange={e => handleEventChange(event.id, { event_type: e.target.value, event_subtype: '', detail: {} })}
+                      error={validationErrors.events[event.id]?.event_type}
+                    >
                       <option value="">Select type...</option>
                       {EVENT_TYPES.map((type) => (
                         <option key={type} value={type}>{type.replace(/_/g, ' ').toUpperCase()}</option>
@@ -225,6 +297,7 @@ export default function CreateBatch() {
                       eventType={event.event_type} 
                       value={event.event_subtype} 
                       onChange={val => handleEventChange(event.id, { event_subtype: val, detail: {} })} 
+                      error={validationErrors.events[event.id]?.event_subtype}
                     />
                     <SummaryBanner text={SUBTYPE_SUMMARIES[`${event.event_type}_${event.event_subtype}`] ?? SUBTYPE_SUMMARIES[event.event_subtype]} />
                   </div>
@@ -237,7 +310,13 @@ export default function CreateBatch() {
               <div className="md:col-span-8 space-y-4">
                 <div>
                    <Label>Headline / Title <span className="text-red-500">*</span></Label>
-                   <Input value={event.title} onChange={e => handleEventChange(event.id, { title: e.target.value })} placeholder="e.g. Promoter buys 5% stake from open market" className="font-medium" />
+                   <Input 
+                     value={event.title} 
+                     onChange={e => handleEventChange(event.id, { title: e.target.value })} 
+                     placeholder="e.g. Promoter buys 5% stake from open market" 
+                     className="font-medium" 
+                     error={validationErrors.events[event.id]?.title}
+                   />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -267,6 +346,7 @@ export default function CreateBatch() {
                     eventType={event.event_type} 
                     event={event} 
                     onChange={(updated) => handleEventChange(event.id, updated)} 
+                    validationErrors={validationErrors.events[event.id]}
                 />
 
                 <div>

@@ -3,64 +3,9 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Label } from './ui/Label';
 
-export function DynamicEventFields({ eventType, event, onChange }) {
-  const subtype = event.event_subtype;
-
-  if (!subtype) return null;
-
-  const handleChange = (field, value) => {
-    onChange({
-      ...event,
-      detail: {
-        ...(event.detail || {}),
-        [field]: value
-      }
-    });
-  };
-
-  const getVal = (field) => event.detail?.[field] ?? '';
-
-  const renderField = (config) => {
-    const isCr = (config.name.includes('amount') && config.name !== 'amount_per_share') || config.name.includes('value') || config.name.includes('size') || ['revenue', 'ebitda', 'pat'].includes(config.name);
-    const labelExt = isCr && !config.label.includes('(Cr)') && !config.label.includes('Crores') ? ' (Cr)' : '';
-    
-    return (
-      <div key={config.name} className={config.fullWidth ? "col-span-2" : ""}>
-        <Label>
-          {config.label}{labelExt} {config.req && <span className="text-red-500">*</span>}
-        </Label>
-        {config.type === 'select' ? (
-          <Select 
-             value={getVal(config.name)} 
-             onChange={e => handleChange(config.name, e.target.value)}
-          >
-            <option value="">Select...</option>
-            {config.options.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </Select>
-        ) : (
-          <Input
-             type={config.type || 'text'}
-             step={config.step}
-             maxLength={config.maxLength}
-             value={getVal(config.name)}
-             onChange={e => {
-                let val = e.target.value;
-                if (config.type === 'number') val = val === '' ? '' : parseFloat(val);
-                if (config.name === 'currency') val = val.toUpperCase().slice(0, 3);
-                handleChange(config.name, val);
-             }}
-             placeholder={config.placeholder || ''}
-          />
-        )}
-      </div>
-    );
-  };
-
+export const getDynamicFields = (eventType, subtype) => {
   let fields = [];
 
-  // Helper arrays for commonly used configs
   const F_AMOUNT_PER_SHARE = { name: 'amount_per_share', label: 'Amount Per Share', type: 'number', step: '0.01', req: true };
   const F_RATIO = { name: 'ratio', label: 'Ratio (e.g. 1:2)', req: true };
   const F_OFFER_PRICE = { name: 'offer_price', label: 'Offer Price', type: 'number', step: '0.01', req: true };
@@ -195,6 +140,11 @@ export function DynamicEventFields({ eventType, event, onChange }) {
          {name:'project_name', label:'Project/Product Name', req:true}, {name:'geography', label:'Geography'},
          {name:'capex_amount', label:'Capex Amount', type:'number'}, {name: 'expected_completion', label: 'Expected Completion Dates', type: 'date'}, F_DESC
       ];
+      else if (subtype === 'sales_initiative') fields = [
+         {name:'campaign_name', label:'Campaign Name', req:true}, {name:'target_revenue', label:'Target Revenue', type:'number'},
+         {name:'target_timeline', label:'Target Timeline'}, {name:'product_name', label:'Product Name'},
+         {name:'target_geography', label:'Target Geography'}, {name:'target_segment', label:'Target Segment'}, F_DESC
+      ];
       else if (subtype === 'divestiture') fields = [{name:'client_name', label:'Buyer Name'}, {name:'contract_value', label:'Value (Cr)', type:'number', req:true}, F_DESC];
       break;
 
@@ -284,15 +234,77 @@ export function DynamicEventFields({ eventType, event, onChange }) {
     default:
       fields = [];
   }
-
-  if (fields.length === 0) {
-     return <div className="p-3 bg-amber-50 text-amber-800 rounded-md text-sm">Please select a valid Event Subtype to enter detailed information.</div>;
-  }
-
-  const hasAmount = fields.some(f => f.name.includes('amount') || f.name.includes('value') || f.name.includes('size') || ['revenue', 'ebitda', 'pat', 'price_per_share', 'offer_price'].includes(f.name));
+  
+  const hasAmount = fields.some(f => f.name.includes('amount') || f.name.includes('value') || f.name.includes('size') || f.name.includes('revenue') || ['ebitda', 'pat', 'price_per_share', 'offer_price'].includes(f.name));
   const finalFields = [...fields];
   if (hasAmount && !finalFields.find(f => f.name === 'currency')) {
      finalFields.push(F_CURRENCY);
+  }
+  
+  return finalFields;
+};
+
+export function DynamicEventFields({ eventType, event, onChange, validationErrors = {} }) {
+  const subtype = event.event_subtype;
+
+  if (!subtype) return null;
+
+  const handleChange = (field, value) => {
+    onChange({
+      ...event,
+      detail: {
+        ...(event.detail || {}),
+        [field]: value
+      }
+    });
+  };
+
+  const getVal = (field) => event.detail?.[field] ?? '';
+
+  const renderField = (config) => {
+    const isCr = (config.name.includes('amount') && config.name !== 'amount_per_share') || config.name.includes('value') || config.name.includes('size') || config.name.includes('revenue') || ['ebitda', 'pat'].includes(config.name);
+    const labelExt = isCr && !config.label.includes('(Cr)') && !config.label.includes('Crores') ? ' (Cr)' : '';
+    
+    return (
+      <div key={config.name} className={config.fullWidth ? "col-span-2" : ""}>
+        <Label>
+          {config.label}{labelExt} {config.req && <span className="text-red-500">*</span>}
+        </Label>
+        {config.type === 'select' ? (
+          <Select 
+             value={getVal(config.name)} 
+             onChange={e => handleChange(config.name, e.target.value)}
+             error={validationErrors?.[config.name]}
+          >
+            <option value="">Select...</option>
+            {config.options.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </Select>
+        ) : (
+          <Input
+             type={config.type || 'text'}
+             step={config.step}
+             maxLength={config.maxLength}
+             value={getVal(config.name)}
+             onChange={e => {
+                let val = e.target.value;
+                if (config.type === 'number') val = val === '' ? '' : parseFloat(val);
+                if (config.name === 'currency') val = val.toUpperCase().slice(0, 3);
+                handleChange(config.name, val);
+             }}
+             placeholder={config.placeholder || ''}
+             error={validationErrors?.[config.name]}
+          />
+        )}
+      </div>
+    );
+  };
+
+  const finalFields = getDynamicFields(eventType, subtype);
+
+  if (finalFields.length === 0) {
+     return <div className="p-3 bg-amber-50 text-amber-800 rounded-md text-sm">Please select a valid Event Subtype to enter detailed information.</div>;
   }
 
   return (

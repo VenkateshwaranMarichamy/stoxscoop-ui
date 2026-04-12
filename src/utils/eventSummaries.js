@@ -56,6 +56,7 @@ export const SUBTYPE_SUMMARIES = {
   expansion:           'Company announces geographical or capacity expansion plans.',
   plant_commissioning: 'A new plant or manufacturing unit is commissioned and ready to operate.',
   new_product:         'Company launches or announces a new product or service offering.',
+  sales_initiative:    'Company launches a structured sales push, campaign, channel expansion or GTM strategy.',
   divestiture:         "Company divests (sells) a business unit, subsidiary, or asset.",
 
   // governance
