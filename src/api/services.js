@@ -27,6 +27,11 @@ export const createBatch = async (payload) => {
   return data;
 }
 
+export const createBatchWithEvents = async (payload) => {
+  const { data } = await apiClient.post('/v1/batches/with-events', payload);
+  return data;
+}
+
 export const completeBatch = async (id) => {
   const { data } = await apiClient.patch(`/v1/batches/${id}/complete`);
   return data;

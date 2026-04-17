@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -8,7 +8,7 @@ import { Select } from '../components/ui/Select';
 import { StockAutocomplete } from '../components/ui/StockAutocomplete';
 import { DynamicEventFields, getDynamicFields } from '../components/DynamicEventFields';
 import { useStocks, useCreateBatchWithEvents, useSubtypes } from '../hooks/useApi';
-import { Plus, Trash2, Copy, Save, Send, AlertCircle, Info } from 'lucide-react';
+import { Plus, Trash2, Copy, Save, Send, AlertCircle, Info, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { EVENT_TYPE_SUMMARIES, SUBTYPE_SUMMARIES } from '../utils/eventSummaries';
 
 const EVENT_TYPES = [
@@ -61,6 +61,10 @@ export default function CreateBatch() {
   const [events, setEvents] = useState([{ ...emptyEvent, id: Date.now() }]);
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState({ batch: {}, events: {} });
+  // Partial ingestion state
+  const [partialResult, setPartialResult] = useState(null); // { created, failed, results[] }
+  const [eventStatuses, setEventStatuses] = useState({}); // { eventId: 'created' | 'failed' | 'pending' }
+  const lastPayloadRef = useRef([]); // maps submission index → event id
 
   // Load from Draft
   useEffect(() => {
@@ -136,16 +140,21 @@ export default function CreateBatch() {
     setEvents(events.filter(ev => ev.id !== id));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (retryOnly = false) => {
+    // On retry, only validate + send failed events
+    const eventsToSubmit = retryOnly
+      ? events.filter(ev => eventStatuses[ev.id] === 'failed')
+      : events;
+
     const newValidationErrors = { batch: {}, events: {} };
     let hasErrors = false;
 
-    if (!batch.batch_name) {
+    if (!retryOnly && !batch.batch_name) {
         newValidationErrors.batch.batch_name = true;
         hasErrors = true;
     }
     
-    events.forEach(ev => {
+    eventsToSubmit.forEach(ev => {
         const eventErrors = {};
         if (!ev.stock_id) eventErrors.stock_id = true;
         if (!ev.title) eventErrors.title = true;
@@ -178,22 +187,46 @@ export default function CreateBatch() {
     setError(null);
     setValidationErrors({ batch: {}, events: {} });
 
-    // Clean up internal `id` before submitting
-    const payloadEvents = events.map(({ id, ...rest }) => ({
-        ...rest,
-        stock_id: parseInt(rest.stock_id, 10),
-        impact_score: parseInt(rest.impact_score, 10),
-        summary: rest.summary || null,
-    }));
+    // Build payload — track index→eventId mapping for partial result handling
+    const indexToEventId = {};
+    const payloadEvents = eventsToSubmit.map(({ id, ...rest }, idx) => {
+        indexToEventId[idx] = id;
+        return {
+            ...rest,
+            stock_id: parseInt(rest.stock_id, 10),
+            impact_score: parseInt(rest.impact_score, 10),
+            summary: rest.summary || null,
+        };
+    });
+    lastPayloadRef.current = indexToEventId;
 
     createBatch({
         batch_name: batch.batch_name,
         notes: batch.notes || null,
-        events: payloadEvents
+        events: payloadEvents,
     }, {
-        onSuccess: () => {
-            clearDraft();
-            navigate('/dashboard');
+        onSuccess: (response) => {
+            // Check for partial ingestion
+            const failed  = response?.failed  ?? 0;
+            const created = response?.created ?? 0;
+            const results = response?.results ?? [];
+
+            if (failed === 0) {
+                // Full success
+                clearDraft();
+                navigate('/dashboard');
+                return;
+            }
+
+            // Partial success — update per-event statuses
+            const newStatuses = { ...eventStatuses };
+            results.forEach(r => {
+                const eventId = lastPayloadRef.current[r.index];
+                if (eventId) newStatuses[eventId] = r.status; // 'created' or 'failed'
+            });
+            setEventStatuses(newStatuses);
+            setPartialResult({ created, failed, results, indexToEventId });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         },
         onError: (err) => {
             setError('Failed to create batch: ' + (err.response?.data?.detail || err.message));
@@ -212,6 +245,45 @@ export default function CreateBatch() {
         <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start">
             <AlertCircle className="w-5 h-5 text-red-500 mr-3 mt-0.5" />
             <p className="text-red-700 font-medium">{error}</p>
+        </div>
+      )}
+
+      {/* Partial ingestion result banner */}
+      {partialResult && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+              <div>
+                <p className="font-semibold text-amber-800">Partial Ingestion</p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  <span className="font-bold text-emerald-700">{partialResult.created} event{partialResult.created !== 1 ? 's' : ''} published</span>
+                  {' · '}
+                  <span className="font-bold text-red-600">{partialResult.failed} failed</span>
+                  {' — fix the errors below and retry'}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setPartialResult(null)} className="text-amber-400 hover:text-amber-700">
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+          {/* Per-item result list */}
+          <div className="space-y-1 pl-7">
+            {partialResult.results.map(r => (
+              <div key={r.index} className={`flex items-center gap-2 text-xs ${r.status === 'created' ? 'text-emerald-700' : 'text-red-600'}`}>
+                {r.status === 'created'
+                  ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  : <XCircle className="w-3.5 h-3.5 shrink-0" />
+                }
+                <span className="font-medium">Event #{r.index + 1}:</span>
+                {r.status === 'created'
+                  ? <span>Published successfully {r.id ? `(ID: ${r.id})` : ''}</span>
+                  : <span>{r.error}</span>
+                }
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -253,20 +325,65 @@ export default function CreateBatch() {
             <p className="text-sm text-slate-500 mt-1 ml-8">Add individual events to this batch below</p>
         </div>
         
-        {events.map((event, index) => (
-          <Card key={event.id} className="relative overflow-hidden group border-slate-200 transition-all hover:border-emerald-300 hover:shadow-md">
-            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+        {events.map((event, index) => {
+          const status = eventStatuses[event.id]; // 'created' | 'failed' | undefined
+          const isCreated = status === 'created';
+          const isFailed  = status === 'failed';
+
+          return (
+          <Card key={event.id} className={`relative overflow-hidden group transition-all ${
+            isCreated ? 'border-emerald-300 bg-emerald-50/30 opacity-75' :
+            isFailed  ? 'border-red-300 shadow-md' :
+            'border-slate-200 hover:border-emerald-300 hover:shadow-md'
+          }`}>
+            <div className={`absolute top-0 left-0 w-1 h-full transition-opacity ${
+              isCreated ? 'bg-emerald-500 opacity-100' :
+              isFailed  ? 'bg-red-500 opacity-100' :
+              'bg-emerald-500 opacity-0 group-hover:opacity-100'
+            }`} />
             <div className="p-1.5 bg-slate-50 border-b border-slate-100 flex justify-between items-center px-4">
-               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Event #{index + 1}</span>
-               <div className="space-x-2">
-                 <Button variant="ghost" size="sm" onClick={() => duplicateEvent(event)} className="h-7 text-xs px-2"><Copy className="w-3 h-3 mr-1" /> Duplicate</Button>
-                 {events.length > 1 && (
-                     <Button variant="ghost" size="sm" onClick={() => removeEvent(event.id)} className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-3 h-3 mr-1" /> Remove</Button>
+               <div className="flex items-center gap-2">
+                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Event #{index + 1}</span>
+                 {isCreated && (
+                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                     <CheckCircle2 className="w-3 h-3" /> Published
+                   </span>
+                 )}
+                 {isFailed && (
+                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                     <XCircle className="w-3 h-3" /> Failed — fix and retry
+                   </span>
                  )}
                </div>
+               {!isCreated && (
+                 <div className="space-x-2">
+                   <Button variant="ghost" size="sm" onClick={() => duplicateEvent(event)} className="h-7 text-xs px-2"><Copy className="w-3 h-3 mr-1" /> Duplicate</Button>
+                   {events.length > 1 && (
+                       <Button variant="ghost" size="sm" onClick={() => removeEvent(event.id)} className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-3 h-3 mr-1" /> Remove</Button>
+                   )}
+                 </div>
+               )}
             </div>
             
             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
+              {isCreated ? (
+                // Collapsed read-only view for published events
+                <div className="md:col-span-12 flex items-center justify-between">
+                  <div className="flex items-center gap-4 text-sm text-slate-600">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                    <div>
+                      <span className="font-semibold text-slate-800">{event.title}</span>
+                      <span className="ml-3 text-slate-400">
+                        {event.event_type?.replace(/_/g, ' ')} · {event.event_subtype?.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded-full">
+                    Saved to backend
+                  </span>
+                </div>
+              ) : (
+              <>
               <div className="md:col-span-4 space-y-4">
                   <div>
                     <Label>Stock <span className="text-red-500">*</span></Label>
@@ -364,9 +481,12 @@ export default function CreateBatch() {
                    <Input value={event.source_url} onChange={e => handleEventChange(event.id, { source_url: e.target.value })} placeholder="https://..." className="text-emerald-600" />
                 </div>
               </div>
+              </>
+              )}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       <div className="flex justify-center pt-2">
@@ -385,9 +505,26 @@ export default function CreateBatch() {
              
              <div className="flex items-center space-x-4">
                  <span className="text-sm font-medium text-slate-500">{events.length} event(s) in batch</span>
-                 <Button size="lg" className="min-w-[150px] shadow-lg shadow-emerald-500/30 bg-emerald-600 hover:bg-emerald-700 text-white border-none" onClick={handleSubmit} disabled={isPending}>
+                 {partialResult ? (
+                   <Button size="lg"
+                     className="min-w-[160px] shadow-lg shadow-amber-500/30 bg-amber-500 hover:bg-amber-600 text-white border-none"
+                     onClick={() => handleSubmit(true)}
+                     disabled={isPending}
+                   >
+                     {isPending
+                       ? 'Retrying...'
+                       : <><RefreshCw className="w-4 h-4 mr-2" /> Retry {partialResult.failed} Failed</>
+                     }
+                   </Button>
+                 ) : (
+                   <Button size="lg"
+                     className="min-w-[150px] shadow-lg shadow-emerald-500/30 bg-emerald-600 hover:bg-emerald-700 text-white border-none"
+                     onClick={() => handleSubmit(false)}
+                     disabled={isPending}
+                   >
                      {isPending ? 'Publishing...' : <><Send className="w-4 h-4 mr-2" /> Publish Batch</>}
-                 </Button>
+                   </Button>
+                 )}
              </div>
          </div>
       </div>
