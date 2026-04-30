@@ -1,4 +1,3 @@
-import axios from 'axios';
 import apiClient from './client';
 
 export const getEvents = async (params) => {
@@ -12,9 +11,9 @@ export const getEventById = async (id) => {
 };
 
 export const getStocks = async () => {
-  // Use raw axios because URL doesn't include /api like apiClient does
-  const { data } = await axios.get('/stocks/all');
-  return data;
+  const { data } = await apiClient.get('/stocks/active');
+  // returns { total, data: [...] } — extract the array
+  return data?.data ?? data;
 };
 
 export const getBatches = async (params) => {
