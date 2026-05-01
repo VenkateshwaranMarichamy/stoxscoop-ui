@@ -22,7 +22,7 @@ export const getDynamicFields = (eventType, subtype) => {
   const F_PERSON_NAME = { name: 'person_name', label: 'Person Name', req: true };
 
   const INV_CATEGORIES = [
-    {value: 'superinvestor', label: 'Superinvestor'}, {value: 'fii', label: 'FII'}, {value: 'dii', label: 'DII'},
+    {value: 'fii', label: 'FII'}, {value: 'dii', label: 'DII'},
     {value: 'hni', label: 'HNI'}, {value: 'mutual_fund', label: 'Mutual Fund'}, {value: 'insurance', label: 'Insurance'},
     {value: 'corporate_body', label: 'Corporate Body'}, {value: 'other', label: 'Other'}
   ];
@@ -34,7 +34,6 @@ export const getDynamicFields = (eventType, subtype) => {
   ];
 
   const TX_MODES = [
-    {value: 'bulk_deal', label: 'Bulk Deal'}, {value: 'block_deal', label: 'Block Deal'}, 
     {value: 'open_market', label: 'Open Market'}, {value: 'off_market', label: 'Off Market'}
   ];
 
@@ -63,8 +62,8 @@ export const getDynamicFields = (eventType, subtype) => {
       if (['bulk_deal', 'block_deal'].includes(subtype)) fields = [
          {name: 'investor_category', label: 'Investor Category', type: 'select', options: INV_CATEGORIES, req: true},
          F_INV_NAME, 
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
-         {name: 'transaction_mode', label: 'Tx Mode', type: 'select', options: TX_MODES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
+         {name: 'transaction_mode', label: 'Tx Mode', type: 'select', options: TX_MODES},
          {name: 'shares_transacted', label: 'Shares Transacted', type: 'number'},
          {name: 'price_per_share', label: 'Price Per Share', type: 'number', step: '0.01'},
          F_TX_VALUE,
@@ -73,25 +72,25 @@ export const getDynamicFields = (eventType, subtype) => {
       else if (['fii_buy', 'fii_sell'].includes(subtype)) fields = [
          {name: 'investor_category', label: 'Investor Category', type: 'select', options: INV_CATEGORIES, req: true},
          F_INV_NAME, {name:'investor_country', label:'Country'},
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
          F_STAKE_BEFORE, F_STAKE_AFTER, F_TX_VALUE
       ];
       else if (['dii_buy', 'dii_sell'].includes(subtype)) fields = [
          {name: 'investor_category', label: 'Investor Category', type: 'select', options: INV_CATEGORIES, req: true},
          F_INV_NAME, 
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
          F_STAKE_BEFORE, F_STAKE_AFTER, F_TX_VALUE
       ];
       else if (['superinvestor_buy', 'superinvestor_sell'].includes(subtype)) fields = [
          {name: 'investor_category', label: 'Investor Category', type: 'select', options: INV_CATEGORIES, req: true},
          F_INV_NAME, 
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
          F_STAKE_BEFORE, F_STAKE_AFTER, {name: 'shares_transacted', label: 'Shares Transacted', type: 'number'}, {name: 'price_per_share', label: 'Price/Share', type: 'number', step: '0.01'}
       ];
       else if (['shareholding_change', 'mutual_fund_change'].includes(subtype)) fields = [
          {name: 'investor_category', label: 'Category', type: 'select', options: INV_CATEGORIES, req: true},
          F_INV_NAME, 
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
          F_STAKE_BEFORE, F_STAKE_AFTER
       ];
       break;
@@ -99,24 +98,24 @@ export const getDynamicFields = (eventType, subtype) => {
     case 'insider':
       if (['insider_buy', 'insider_sell'].includes(subtype)) fields = [
          F_PERSON_NAME, {name: 'designation', label: 'Designation'}, {name: 'relationship', label: 'Relationship'},
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
          {name: 'shares_transacted', label: 'Shares Transacted', type: 'number'},
          {name: 'price_per_share', label: 'Price Per Share', type: 'number', step: '0.01'},
          F_STAKE_BEFORE, F_STAKE_AFTER, {name:'transaction_date', label:'Tx Date', type:'date'}, {name:'sebi_disclosure_date', label:'SEBI Date', type:'date'}
       ];
       else if (['pledge', 'pledge_release'].includes(subtype)) fields = [
          F_PERSON_NAME, {name:'relationship', label:'Relationship'}, 
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
          {name:'pledge_percentage', label:'Pledge %', type:'number', step:'0.01', req:true}, {name:'transaction_date', label:'Tx Date', type:'date'}
       ];
       else if (['acquisition', 'creeping_acquisition'].includes(subtype)) fields = [
          F_PERSON_NAME, {name:'relationship', label:'Relationship'}, 
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
          {name:'shares_transacted', label:'Shares Transacted', type:'number'}, {name:'price_per_share', label:'Price/Share', type:'number', step:'0.01'}, F_STAKE_BEFORE, F_STAKE_AFTER
       ];
       else if (subtype === 'esop_exercise') fields = [
          F_PERSON_NAME, {name:'designation', label:'Designation'}, 
-         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES, req: true},
+         {name: 'transaction_type', label: 'Tx Type', type: 'select', options: TX_TYPES},
          {name:'shares_transacted', label:'Shares Transacted', type:'number'}, {name:'price_per_share', label:'Price/Share', type:'number'}, {name:'transaction_date', label:'Tx Date', type:'date'}
       ];
       break;
