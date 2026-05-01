@@ -467,16 +467,6 @@ export default function CreateBatch() {
                 />
 
                 <div>
-                   <Label>Description <span className="text-slate-400 font-normal text-xs">(sent as summary)</span></Label>
-                   <textarea
-                     value={event.summary}
-                     onChange={e => handleEventChange(event.id, { summary: e.target.value })}
-                     placeholder="Brief description of this event and its significance..."
-                     rows={3}
-                     className="w-full mt-1 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent resize-none leading-relaxed"
-                   />
-                </div>
-                <div>
                    <Label>Source URL (Optional)</Label>
                    <Input value={event.source_url} onChange={e => handleEventChange(event.id, { source_url: e.target.value })} placeholder="https://..." className="text-emerald-600" />
                 </div>

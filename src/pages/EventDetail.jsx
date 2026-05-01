@@ -77,8 +77,14 @@ export default function EventDetail() {
             {dynamicDetails && (
                 <div className="bg-slate-50/80 rounded-xl p-6 border border-slate-100">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Event Specific Details</h3>
+                    {/* Description shown prominently if present */}
+                    {dynamicDetails.description && (
+                        <p className="text-slate-700 text-sm leading-relaxed mb-5 pb-5 border-b border-slate-200">
+                            {dynamicDetails.description}
+                        </p>
+                    )}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
-                        {Object.entries(dynamicDetails).filter(([key]) => key !== 'currency').map(([key, value]) => {
+                        {Object.entries(dynamicDetails).filter(([key]) => key !== 'currency' && key !== 'description').map(([key, value]) => {
                             if (value === null || value === undefined) return null;
                             
                             const isCr = (key.includes('amount') && key !== 'amount_per_share') || key.includes('value') || key.includes('size') || ['revenue', 'ebitda', 'pat'].includes(key);
