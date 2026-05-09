@@ -89,13 +89,20 @@ export default function EventDetail() {
                             
                             const isCr = (key.includes('amount') && key !== 'amount_per_share') || key.includes('value') || key.includes('size') || ['revenue', 'ebitda', 'pat'].includes(key);
                             const isPerShare = key.includes('price') || key.includes('per_share') || key === 'upside';
+                            const isShares = key.includes('shares') || key.includes('number_of');
                             
                             let displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value;
-                            if ((isCr || isPerShare) && value !== '') {
-                               const curr = dynamicDetails.currency || 'INR';
+                            if ((isCr || isPerShare || isShares) && value !== '') {
                                const numValue = parseFloat(value);
-                               const formattedValue = isNaN(numValue) ? value : numValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                               displayValue = `${curr} ${formattedValue}${isCr ? ' Cr' : ''}`;
+                               if (!isNaN(numValue)) {
+                                   if (isShares) {
+                                       displayValue = numValue.toLocaleString('en-IN');
+                                   } else {
+                                       const curr = dynamicDetails.currency || 'INR';
+                                       const formattedValue = numValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                       displayValue = `${curr} ${formattedValue}${isCr ? ' Cr' : ''}`;
+                                   }
+                               }
                             }
 
                             return (

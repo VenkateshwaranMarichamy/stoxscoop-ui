@@ -3,6 +3,29 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Label } from './ui/Label';
 
+export const formatIndianNumber = (val) => {
+  if (val === null || val === undefined || val === '') return '';
+  const rawStr = String(val).replace(/,/g, '');
+  if (rawStr === '-' || rawStr === '.' || rawStr === '-.') return rawStr;
+  
+  const parts = rawStr.split('.');
+  let intPart = parts[0];
+  const decimalPart = parts.length > 1 ? '.' + parts[1] : '';
+
+  const isNegative = intPart.startsWith('-');
+  if (isNegative) intPart = intPart.substring(1);
+  
+  let formattedInt = intPart;
+  if (intPart.length > 3) {
+      const lastThree = intPart.substring(intPart.length - 3);
+      const otherNumbers = intPart.substring(0, intPart.length - 3);
+      formattedInt = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + lastThree;
+  }
+  if (isNegative) formattedInt = '-' + formattedInt;
+  
+  return formattedInt + decimalPart;
+};
+
 export const getDynamicFields = (eventType, subtype) => {
   let fields = [];
 
@@ -339,13 +362,25 @@ export function DynamicEventFields({ eventType, event, onChange, validationError
           />
         ) : (
           <Input
-            type={config.type || 'text'}
+            type={config.type === 'number' ? 'text' : config.type || 'text'}
             step={config.step}
             maxLength={config.maxLength}
-            value={getVal(config.name)}
+            min={['shares_transacted', 'transaction_value'].includes(config.name) ? "0" : undefined}
+            value={config.type === 'number' ? formatIndianNumber(getVal(config.name)) : getVal(config.name)}
             onChange={e => {
               let val = e.target.value;
-              if (config.type === 'number') val = val === '' ? '' : parseFloat(val);
+              if (config.type === 'number') {
+                val = val.replace(/,/g, '');
+                
+                // Ignore invalid characters, but allow intermediate states like "-" or "."
+                if (val !== '' && val !== '-' && val !== '.' && val !== '-.' && isNaN(Number(val))) {
+                    return;
+                }
+                
+                if (['shares_transacted', 'transaction_value'].includes(config.name) && val.startsWith('-')) {
+                  val = val.substring(1);
+                }
+              }
               if (config.name === 'currency') val = val.toUpperCase().slice(0, 3);
               handleChange(config.name, val);
             }}
